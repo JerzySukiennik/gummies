@@ -14,7 +14,8 @@ import { Pitcher, Bottle, Shaker, Sealer } from './tools.js';
 import { Pack, PACK } from './pack.js';
 import { UI } from './ui.js';
 import { t, nm, packName, FLAVORS } from './data.js';
-import { load, addPack, putPayload, getPayload } from './store.js';
+import { load, save, addPack, putPayload, getPayload } from './store.js';
+import { cloudReady, publishPack, unpublishPack, listPacks, fetchPack } from './cloud.js';
 import { audio } from './audio.js';
 import { rasterize } from './shapes.js';
 
@@ -88,7 +89,21 @@ const ui = new UI({
   start,
   molds: () => ui.molds(placeMold),
   clearTable,
-  spill: spillPack,
+  spill: p => (p.remote ? spillPublic(p) : spillPack(p)),
+  canPublish: () => cloudReady,
+  listPublic: before => listPacks(before),
+  publish: async p => {
+    const pl = await getPayload(p.id);
+    if (!pl) throw new Error('no data');
+    p.pub = await publishPack({ name: p.name, count: p.count, thumb: p.thumb, style: p.style }, pl);
+    save();
+  },
+  unpublish: async p => {
+    if (!p.pub) return;
+    if (!(await unpublishPack(p.pub.id, p.pub.key))) throw new Error('failed');
+    delete p.pub;
+    save();
+  },
 });
 audio.setEnabled(load().sound);
 
@@ -615,35 +630,43 @@ function collect() {
   );
 }
 
-function spillPack(p) {
-  getPayload(p.id).then(pl => {
-    if (!pl || !pl.bodies || !pl.bodies.length) return;
-    const L = stage.layout;
-    const cx = stage.portrait ? 0 : mold ? -13.5 : 0;
-    const cz = stage.portrait ? (mold ? 9 : 2) : mold ? L.mold[1] + 2 : 2;
-    pl.bodies.forEach((d, i) => {
-      after(0.12 * i, () => {
-        if (bodies.length > 50) return;
-        const B = bodyFromData(d, cx + (Math.random() - 0.5) * 7, cz + (Math.random() - 0.5) * 7);
-        if (!B) return;
-        if (B.face < 0) {
-          m4.makeTranslation(B.g0[0], B.g0[1], B.g0[2]);
-          m4b.makeRotationX(Math.PI);
-          m4.multiply(m4b);
-          m4b.makeTranslation(-B.g0[0], -B.g0[1], -B.g0[2]);
-          m4.multiply(m4b);
-          quat.setFromAxisAngle(v3.set(1, 0, 0), Math.PI);
-          B.pose(m4, quat);
-        }
-        B.shift(0, 9 + Math.random() * 3, 0);
-        B.fresh = false;
-        B.wake();
-        B.spin(0, 1, 0, (Math.random() - 0.5) * 3);
-        audio.play('pop', 0.45, 1 + Math.random() * 0.3, 0.04);
-      });
+function spillBodies(pl) {
+  if (!pl || !pl.bodies || !pl.bodies.length) return;
+  const L = stage.layout;
+  const cx = stage.portrait ? 0 : mold ? -13.5 : 0;
+  const cz = stage.portrait ? (mold ? 9 : 2) : mold ? L.mold[1] + 2 : 2;
+  pl.bodies.forEach((d, i) => {
+    after(0.12 * i, () => {
+      if (bodies.length > 50) return;
+      const B = bodyFromData(d, cx + (Math.random() - 0.5) * 7, cz + (Math.random() - 0.5) * 7);
+      if (!B) return;
+      if (B.face < 0) {
+        m4.makeTranslation(B.g0[0], B.g0[1], B.g0[2]);
+        m4b.makeRotationX(Math.PI);
+        m4.multiply(m4b);
+        m4b.makeTranslation(-B.g0[0], -B.g0[1], -B.g0[2]);
+        m4.multiply(m4b);
+        quat.setFromAxisAngle(v3.set(1, 0, 0), Math.PI);
+        B.pose(m4, quat);
+      }
+      B.shift(0, 9 + Math.random() * 3, 0);
+      B.fresh = false;
+      B.wake();
+      B.spin(0, 1, 0, (Math.random() - 0.5) * 3);
+      audio.play('pop', 0.45, 1 + Math.random() * 0.3, 0.04);
     });
-    kick();
   });
+  kick();
+}
+
+function spillPack(p) {
+  getPayload(p.id).then(spillBodies);
+}
+
+function spillPublic(p) {
+  fetchPack(p.id)
+    .then(pl => (pl ? spillBodies(pl) : ui.hint(t('offline'), 2400)))
+    .catch(() => ui.hint(t('offline'), 2400));
 }
 
 function pickUp(tl) {
@@ -1200,6 +1223,7 @@ window.G = {
   collect,
   pourOut,
   spillPack,
+  cloud: { publishPack, unpublishPack, listPacks, fetchPack },
   get mold() {
     return mold;
   },

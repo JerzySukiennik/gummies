@@ -81,6 +81,12 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .design input::placeholder { color: #a1a1a6; font-weight: 500; }
 .design .row { margin-top: 12px; }
 .btn.ghost:disabled { opacity: .35; pointer-events: none; }
+.seg { display: inline-flex; background: #ededf0; border-radius: 12px; padding: 3px; margin: -4px 0 14px; }
+.seg button { height: 32px; padding: 0 18px; border-radius: 9px; font-size: 14px; font-weight: 600; color: #6e6e73; transition: background .2s, color .2s, box-shadow .2s; }
+.seg button.sel { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.more { margin-top: 14px; }
+.tag { font-weight: 600; color: var(--ink); }
+.pubbtn { margin-top: 10px; }
 .detail { display: flex; gap: 22px; align-items: center; }
 .detail img { width: min(46%, 250px); border-radius: 22px; display: block; box-shadow: 0 12px 30px rgba(0,0,0,.1); }
 .detail-info { flex: 1; min-width: 0; }

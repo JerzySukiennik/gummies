@@ -102,7 +102,6 @@ export class UI {
     this.hud.classList.toggle('hidden', on);
     const n = load().packs.length;
     this.title.querySelector('.count').textContent = n ? n : '';
-    this.title.querySelector('[data-a="collection"]').classList.toggle('hidden', !n);
   }
 
   placeTitle(y) {
@@ -585,28 +584,78 @@ export class UI {
     this.sheet('narrow', t('menu'), body);
   }
 
-  collection() {
+  collection(tab = 'mine') {
     const d = load();
+    const wrap = el('div', 'coll');
+    const seg = el('div', 'seg');
+    for (const [id, label] of [['mine', t('mine')], ['all', t('everyone')]]) {
+      const b = el('button', id === tab ? 'sel' : '', label);
+      b.addEventListener('click', () => {
+        if (id === tab) return;
+        this.cb.click();
+        this.collection(id);
+      });
+      seg.append(b);
+    }
     const body = el('div', 'grid packs');
-    if (!d.packs.length) body.append(el('p', 'sub empty', t('emptyCollection')));
-    for (const p of d.packs.slice().reverse()) {
-      const card = el('button', 'card pack');
+    wrap.append(seg, body);
+    const fmt = ts => new Date(ts).toLocaleDateString(LANG === 'pl' ? 'pl-PL' : 'en-US', { day: 'numeric', month: 'short' });
+    const card = p => {
+      const c = el('button', 'card pack');
       const img = el('img');
       img.src = p.thumb;
       img.alt = '';
-      const date = new Date(p.date).toLocaleDateString(LANG === 'pl' ? 'pl-PL' : 'en-US', { day: 'numeric', month: 'short' });
+      img.loading = 'lazy';
       const meta = el('div', 'pack-meta');
-      meta.append(el('span', '', `${p.count} ${t('pieces')} · ${date}`));
+      meta.append(el('span', '', `${p.count} ${t('pieces')} · ${fmt(p.date)}`));
+      if (p.pub) meta.append(el('span', 'tag', t('published')));
       const nmEl = el('span', 'card-name');
       nmEl.textContent = p.name;
-      card.append(img, nmEl, meta);
-      card.addEventListener('click', () => {
+      c.append(img, nmEl, meta);
+      c.addEventListener('click', () => {
         this.cb.click();
-        this.packDetail(p, date);
+        this.packDetail(p, fmt(p.date));
       });
-      body.append(card);
+      return c;
+    };
+    const sheet = this.sheet('wide', t('collection'), wrap);
+    if (tab === 'mine') {
+      if (!d.packs.length) body.append(el('p', 'sub empty', t('emptyCollection')));
+      for (const p of d.packs.slice().reverse()) body.append(card(p));
+      return;
     }
-    this.sheet('wide', t('collection'), body);
+    const note = el('p', 'sub empty', t('loading'));
+    body.append(note);
+    const more = el('button', 'btn ghost wide more', t('more'));
+    let last = 0;
+    const page = () => {
+      more.disabled = true;
+      this.cb
+        .listPublic(last)
+        .then(res => {
+          if (this.open !== sheet) return;
+          note.remove();
+          for (const p of res.list) {
+            body.append(card(p));
+            last = last ? Math.min(last, p.date) : p.date;
+          }
+          more.disabled = false;
+          if (res.more) wrap.append(more);
+          else more.remove();
+          if (!body.children.length) body.append(el('p', 'sub empty', t('emptyPublic')));
+        })
+        .catch(() => {
+          if (this.open !== sheet) return;
+          note.textContent = t('offline');
+          if (!note.parentNode) body.append(note);
+          more.remove();
+        });
+    };
+    more.addEventListener('click', () => {
+      this.cb.click();
+      page();
+    });
+    page();
   }
 
   packDetail(p, date) {
@@ -617,36 +666,67 @@ export class UI {
     const info = el('div', 'detail-info');
     const h = el('h3');
     h.textContent = p.name;
-    info.append(h, el('p', 'sub', `${p.count} ${t('pieces')} · ${date}`));
+    const local = !p.remote;
+    const mine = local ? p : load().packs.find(q => q.pub && q.pub.id === p.id);
+    info.append(h, el('p', 'sub', `${p.count} ${t('pieces')} · ${date}${local && p.pub ? ' · ' + t('published') : ''}`));
     const spill = el('button', 'btn primary wide', t('spill'));
-    const back = el('button', 'btn ghost', t('back'));
-    const del = el('button', 'btn ghost', t('del'));
     spill.addEventListener('click', () => {
       this.cb.click();
       this.close();
       this.cb.spill(p);
     });
+    info.append(spill);
+    const back = el('button', 'btn ghost', t('back'));
     back.addEventListener('click', () => {
       this.cb.click();
-      this.collection();
-    });
-    del.addEventListener('click', () => {
-      if (!del._armed) {
-        del._armed = true;
-        del.textContent = t('delAsk');
-        setTimeout(() => {
-          del._armed = false;
-          del.textContent = t('del');
-        }, 2400);
-        return;
-      }
-      removePack(p.id);
-      this.cb.click();
-      this.collection();
+      this.collection(local ? 'mine' : 'all');
     });
     const row = el('div', 'row');
-    row.append(back, del);
-    info.append(spill, row);
+    row.append(back);
+    if (mine && (mine.pub || this.cb.canPublish())) {
+      const pub = el('button', 'btn ghost wide pubbtn', mine.pub ? t('unpublish') : t('publish'));
+      pub.addEventListener('click', () => {
+        this.cb.click();
+        pub.disabled = true;
+        pub.textContent = t('loading');
+        const was = !!mine.pub;
+        (was ? this.cb.unpublish(mine) : this.cb.publish(mine))
+          .then(() => {
+            this.hint(t(was ? 'unpubDone' : 'pubDone'), 2600);
+            if (this.open && this.open.contains(pub)) local ? this.packDetail(p, date) : this.collection('all');
+          })
+          .catch(() => {
+            this.hint(t('pubFail'), 2600);
+            pub.disabled = false;
+            pub.textContent = was ? t('unpublish') : t('publish');
+          });
+      });
+      info.append(pub);
+    }
+    if (local) {
+      const del = el('button', 'btn ghost', t('del'));
+      del.addEventListener('click', () => {
+        if (!del._armed) {
+          del._armed = true;
+          del.textContent = t('delAsk');
+          setTimeout(() => {
+            del._armed = false;
+            del.textContent = t('del');
+          }, 2400);
+          return;
+        }
+        this.cb.click();
+        del.disabled = true;
+        Promise.resolve(p.pub ? this.cb.unpublish(p) : 0)
+          .catch(() => 0)
+          .then(() => {
+            removePack(p.id);
+            this.collection('mine');
+          });
+      });
+      row.append(del);
+    }
+    info.append(row);
     body.append(img, info);
     this.sheet('wide', t('collection'), body);
   }

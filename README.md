@@ -12,6 +12,10 @@ No build step: plain ES modules, three.js from a CDN. Open `index.html` through 
 - **Chocolate and toppings** are stored per vertex, so drizzle lines and sugar stay where they landed.
 - **Pouches** carry a printed design (color, pattern, sticker, name), can be dragged and shaken, are closed with the heat sealer and saved to a local collection. Saved packs can be poured back onto the table.
 
+## Public gallery
+
+Saved packs live in the browser (thumbnail and metadata in localStorage, full gummies in IndexedDB). A pack can be published to a shared gallery that every player sees under Collection > Everyone, and anyone can pour a published pack onto their own table. The gallery is a Firebase Realtime Database used over plain REST with no SDK and no login; the rules are in `rules/database.rules.json`. Only the browser that published a pack can remove it, because it keeps the secret key written next to the pack.
+
 ## Controls
 
 - Click a tool to pick it up, hold to pour, click its empty spot (or press Esc) to put it back. Keys 1-4 pick tools.
@@ -24,6 +28,7 @@ No build step: plain ES modules, three.js from a CDN. Open `index.html` through 
 - `src/shapes.js`, `src/mold.js`: shapes, distance fields, mold relief
 - `src/gummy.js`, `src/soft.js`: meshing, soft bodies, skinning, serialization
 - `src/tools.js`, `src/pack.js`, `src/sugar.js`: pitcher, bottle, shaker, sealer, pouch, toppings
+- `src/store.js`, `src/cloud.js`: local collection and the public gallery
 - `src/ui.js`, `css/style.css`, `src/data.js`: interface and texts (Polish and English)
 
 ## Credits

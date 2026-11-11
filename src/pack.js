@@ -150,6 +150,7 @@ export class Pack {
     back.renderOrder = 28;
     const front = new THREE.Mesh(g, mf);
     front.renderOrder = 30;
+    this.films = [mb, mf];
     const sh = new THREE.Mesh(new THREE.BoxGeometry(PACK.hw * 2, PACK.h * 0.8, PACK.hd * 1.5), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
     sh.position.y = PACK.h * 0.4;
     sh.castShadow = true;
@@ -280,7 +281,15 @@ export class Pack {
     r.setRenderTarget(rt);
     r.setClearColor(BG, 1);
     r.clear();
+    for (const m of this.films) {
+      m.envMapIntensity = 0.3;
+      m.clearcoat = 0;
+    }
     r.render(this.stage.scene, cam);
+    for (const m of this.films) {
+      m.envMapIntensity = 1.1;
+      m.clearcoat = 0.6;
+    }
     const px = new Uint8Array(W * H * 4);
     r.readRenderTargetPixels(rt, 0, 0, W, H, px);
     r.setRenderTarget(prev);
