@@ -1,0 +1,46 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "gummies": {
+      "packs": {
+        ".read": true,
+        ".indexOn": ["t"],
+        "$id": {
+          ".write": "(!data.exists() && newData.exists()) || (data.exists() && !newData.exists() && root.child('gummies/keys').child($id).exists() && newData.parent().parent().child('del').child($id).val() === root.child('gummies/keys').child($id).val())",
+          ".validate": "$id.matches(/^[a-z0-9]{10,24}$/) && newData.hasChildren(['n', 'c', 't', 'th'])",
+          "n": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40" },
+          "c": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 60" },
+          "t": { ".validate": "newData.val() === now" },
+          "th": { ".validate": "newData.isString() && newData.val().length < 70000 && newData.val().beginsWith('data:image/jpeg;base64,')" },
+          "s": {
+            "color": { ".validate": "newData.isString() && newData.val().length <= 9" },
+            "pattern": { ".validate": "newData.isString() && newData.val().length <= 12" },
+            "sticker": { ".validate": "newData.isString() && newData.val().length <= 14" },
+            "$o": { ".validate": false }
+          },
+          "$other": { ".validate": false }
+        }
+      },
+      "data": {
+        "$id": {
+          ".read": true,
+          ".write": "(!data.exists() && newData.exists() && newData.parent().parent().child('packs').child($id).exists()) || (data.exists() && !newData.exists() && root.child('gummies/keys').child($id).exists() && newData.parent().parent().child('del').child($id).val() === root.child('gummies/keys').child($id).val())",
+          ".validate": "newData.isString() && newData.val().length < 1200000"
+        }
+      },
+      "keys": {
+        "$id": {
+          ".write": "!data.exists() && newData.exists()",
+          ".validate": "newData.isString() && newData.val().length >= 16 && newData.val().length <= 64"
+        }
+      },
+      "del": {
+        "$id": {
+          ".write": true,
+          ".validate": "newData.isString() && newData.val().length <= 64"
+        }
+      }
+    }
+  }
+}
